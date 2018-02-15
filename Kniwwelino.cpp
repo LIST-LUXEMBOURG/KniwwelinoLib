@@ -21,12 +21,10 @@
 
 //-- DEBUG Helpers -------------
 #ifdef DEBUG
-#define DEBUG_PRINT(x)         Serial.print (x)
-#define DEBUG_PRINTDEC(x)      Serial.print (x, DEC)
-#define DEBUG_PRINTLN(x)       Serial.println (x)
+#define DEBUG_PRINT(x)         Kniwwelino.log (String(x))
+#define DEBUG_PRINTLN(x)       Kniwwelino.logln (String(x))
 #else
 #define DEBUG_PRINT(x)
-#define DEBUG_PRINTDEC(x)
 #define DEBUG_PRINTLN(x)
 #endif
 
@@ -53,6 +51,10 @@ void KniwwelinoLib::begin() {
 	begin(true, false);
 }
 
+void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
+	begin(enableWifi, fast, false);
+}
+
 /*
  * begin - Initializes the Board hardware, Wifi and MQTT.
  * MUST be called once in the setup routine to use the board.
@@ -60,8 +62,9 @@ void KniwwelinoLib::begin() {
  * boolean enableWifi Enable Wifi and try to connecto to Wifi and MQTT
  * boolean fast  Startup faster without waiting for all scrolling texts.
  */
-void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
+void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	//if (enableWifi && fast) WiFi.begin();
+	mqttLogEnabled = mqttLog;
 
 	Serial.begin(115200);
 	DEBUG_PRINT("\n");DEBUG_PRINT(getName());DEBUG_PRINT(F(" booting up..."));
@@ -75,6 +78,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 	// init variables with defaults
 	mqttTopicUpdate.replace(":","");
 	mqttTopicReqPwd.replace(":","");
+	mqttTopicLogEnabled.replace(":","");
 	mqttTopicSentPwd.replace(":","");
 	mqttTopicStatus.replace(":","");
 	strncpy(updateServer, DEF_UPDATESERVER, sizeof(DEF_UPDATESERVER));
@@ -157,7 +161,8 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 		Kniwwelino.MATRIXshowID();
 		Kniwwelino.RGBsetColorEffect(RGB_COLOR_ORANGE, RGB_BLINK, RGB_FOREVER);
 		while (! Kniwwelino.BUTTONBdown())  {
-			Kniwwelino.sleep(100);
+			Kniwwelino.sleep(1000);
+			DEBUG_PRINTLN(F("Waiting for firmware download..."));
 		}
 		idShowing = false;
 	}
@@ -252,11 +257,6 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 	    		_MQTTupdateStatus(false);
 	    	}
 	    }
-
-	    // Reset button clicked state and read buttons again.
-//	    buttonAClicked = false;
-//	    buttonBClicked = false;
-//	    _Buttonsread();
 	}
 
 	/*
@@ -266,7 +266,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 	void KniwwelinoLib::_baseTick() {
 		_tick++;
 
-		Kniwwelino._PINblink();
+		Kniwwelino._PINhandle();
 
 		Kniwwelino._RGBblink();
 
@@ -277,33 +277,57 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 		//DEBUG_PRINT(">");
 	}
 
+
+	//====  logging  =============================================================
+
+	  void KniwwelinoLib::log		(String s) {
+		  Serial.print (s);
+		  if (mqttLogEnabled && mqttEnabled && mqtt.connected()) {
+			  mqtt.publish(mqttTopicStatus + "/log", s);
+		  }
+	  }
+
+	  void KniwwelinoLib::logln	(String s) {
+		  Serial.println (s);
+		  if (mqttLogEnabled && mqttEnabled && mqtt.connected()) {
+			  mqtt.publish(mqttTopicStatus + "/log", s + "\n");
+		  }
+	  }
+
 	/*
-	 * internal function for PIN blink/flash effects
+	 * internal function for EXTERNAL PIN button or LED blink/flash effects
 	 */
-	void KniwwelinoLib::_PINblink() {
+	void KniwwelinoLib::_PINhandle() {
 
 		for (int i = 0; i < sizeof(ioPinNumers); i++) {
-			if (ioPinStatus[i] == RGB_UNUSED) {
+			if (ioPinStatus[i] == PIN_UNUSED) {
+				continue;
+			}
+
+			// TODO read external Button
+			if (ioPinStatus[i] == PIN_INPUT) {
+				if (!digitalRead(ioPinNumers[i])) ioPinclicked[i] = true;
 				continue;
 			}
 
 			// if Effect Time has passed, turn off Pin
-			if (ioPinStatus[i]==0) {
-				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINT(" LOW");
+			if (ioPinStatus[i] == PIN_OFF) {
+				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINTLN(" LOW");
 				digitalWrite(ioPinNumers[i], LOW);
-				return;
+				continue;
 			}
 			// if Effect is static on, nothing to do
-			if (ioPinStatus[i] == RGB_ON) {
-				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINT(" HIGH");
+			if (ioPinStatus[i] == PIN_ON) {
+				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINTLN(" HIGH");
 				digitalWrite(ioPinNumers[i], HIGH);
+				continue;
 			}
 			// handle effect
 			if (rgbBlinkCount<=ioPinStatus[i]) {
-				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINT(" HIGH");
+				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINTLN(" HIGH");
 				digitalWrite(ioPinNumers[i], HIGH);
 			} else {
-				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINT(" LOW");
+				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINTLN(" LOW");
 				digitalWrite(ioPinNumers[i], LOW);
 			}
 		}
@@ -341,19 +365,68 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 	    digitalWrite(pin, LOW);
 		switch (pin) {
 		    case D0:
-		      ioPinStatus[0] = RGB_UNUSED;
+		      ioPinStatus[0] = PIN_UNUSED;
 		      break;
 		    case D5:
-		      ioPinStatus[1] = RGB_UNUSED;
+		      ioPinStatus[1] = PIN_UNUSED;
 		      break;
 		    case D6:
-		      ioPinStatus[2] = RGB_UNUSED;
+		      ioPinStatus[2] = PIN_UNUSED;
 		      break;
 		    case D7:
-		      ioPinStatus[3] = RGB_UNUSED;
+		      ioPinStatus[3] = PIN_UNUSED;
 		      break;
 		    break;
 		  }
+	}
+
+	void KniwwelinoLib::PINenableButton(uint8_t pin) {
+		pinMode(pin, INPUT_PULLUP);
+		switch (pin) {
+		case D0:
+			ioPinStatus[0] = PIN_INPUT;
+			break;
+		case D5:
+			ioPinStatus[1] = PIN_INPUT;
+			break;
+		case D6:
+			ioPinStatus[2] = PIN_INPUT;
+			break;
+		case D7:
+			ioPinStatus[3] = PIN_INPUT;
+			break;
+		}
+	}
+
+	boolean KniwwelinoLib::PINbuttonClicked(uint8_t pin) {
+
+    	if (!digitalRead(pin)) return false; // still pressed
+
+		boolean clicked = false;
+		switch (pin) {
+		case D0:
+			clicked = ioPinclicked[0];
+			ioPinclicked[0] = false;
+			break;
+		case D5:
+			clicked = ioPinclicked[1];
+			ioPinclicked[1] = false;
+			break;
+		case D6:
+			clicked = ioPinclicked[2];
+			ioPinclicked[2] = false;
+			break;
+		case D7:
+			clicked = ioPinclicked[3];
+			ioPinclicked[3] = false;
+			break;
+		}
+
+    	return (clicked);
+	}
+
+	boolean KniwwelinoLib::PINbuttonDown(uint8_t pin) {
+		return !digitalRead(pin);
 	}
 
 //==== RGB LED  functions ====================================================
@@ -428,6 +501,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 	 * Set the RGB LED of the board to be OFF
 	 */
 	void KniwwelinoLib::RGBclear() {
+		rgbEffectCount=0;
 		RGB.setPixelColor(0, 0);
 		RGB.show();
 	}
@@ -1129,8 +1203,10 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
 			mqtt.subscribe(Kniwwelino.mqttTopicUpdate);
 			DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(Kniwwelino.mqttTopicReqPwd);
 			mqtt.subscribe(Kniwwelino.mqttTopicReqPwd);
+			DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(Kniwwelino.mqttTopicLogEnabled);
+			mqtt.subscribe(Kniwwelino.mqttTopicLogEnabled);
 
-			_MQTTupdateStatus(true);
+//			_MQTTupdateStatus(true);
 
 			// resubscribe to topics
 			for (int j=9; j>-1; j--) {
@@ -1318,7 +1394,8 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
     	DEBUG_PRINT("MQTT messageReceived: ");
     	DEBUG_PRINT(topic);
     	DEBUG_PRINT(": ");
-    	DEBUG_PRINTLN(""+payload);
+    	if (payload) DEBUG_PRINTLN(""+payload);
+    	else DEBUG_PRINTLN("");
 
     	// For the Platform update, login etc...
     	if (topic == Kniwwelino.mqttTopicReqPwd) {
@@ -1326,13 +1403,20 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
     		Kniwwelino.MQTTpublish(Kniwwelino.mqttTopicSentPwd, String(Kniwwelino.platformPW));
     	} else if (topic == Kniwwelino.mqttTopicUpdate) {
     		DEBUG_PRINTLN("MQTT->PLATTFORM UPDATE Request");
-			if (payload.equals("configuration")) {
+			if (payload && payload.equals("configuration")) {
 				Kniwwelino.PLATFORMcheckConfUpdate();
-			} else if (payload.equals("firmware")) {
+			} else if (payload && payload.equals("firmware")) {
 				if (! Kniwwelino.PLATFORMcheckFWUpdate()) {
 					Kniwwelino.MATRIXwriteAndWait("Update Failed! ");
 //					ESP.restart();
 				}
+			}
+    	} else if (topic == Kniwwelino.mqttTopicLogEnabled) {
+			DEBUG_PRINTLN("MQTT->PLATTFORM MQTT LOG");
+			if (payload && payload.equals("on")) {
+				mqttLogEnabled = true;
+			} else {
+				mqttLogEnabled = false;
 			}
 
 		// for simple LED and MAtrix functionalities
@@ -1341,7 +1425,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast) {
     	} else if (Kniwwelino.mqttMATRIX && topic.startsWith(Kniwwelino.mqttGroup + MQTT_MATRIXICON)) {
     		Kniwwelino.MATRIXdrawIcon(payload);
     	} else if (Kniwwelino.mqttMATRIX && topic.startsWith(Kniwwelino.mqttGroup + MQTT_MATRIXTEXT)) {
-    		if (payload.length() == 0) {
+    		if (!payload || payload.length() == 0) {
     			Kniwwelino.MATRIXclear();
     		} else {
     			Kniwwelino.MATRIXwrite(payload, MATRIX_FOREVER, false);
