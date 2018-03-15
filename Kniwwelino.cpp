@@ -21,11 +21,11 @@
 
 //-- DEBUG Helpers -------------
 #ifdef DEBUG
-#define DEBUG_PRINT(x)         Kniwwelino.log (String(x))
-#define DEBUG_PRINTLN(x)       Kniwwelino.logln (String(x))
+	#define DEBUG_PRINT(x)         Kniwwelino.log (String(x))
+	#define DEBUG_PRINTLN(x)       Kniwwelino.logln (String(x))
 #else
-#define DEBUG_PRINT(x)
-#define DEBUG_PRINTLN(x)
+	#define DEBUG_PRINT(x)
+	#define DEBUG_PRINTLN(x)
 #endif
 
 //-- CALLBACK Helpers -------------
@@ -158,6 +158,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 
 	// wait here for button b pressed if ID is showning
 	if (idShowing) {
+		_MQTTupdateStatus(true);
 		Kniwwelino.MATRIXshowID();
 		Kniwwelino.RGBsetColorEffect(RGB_COLOR_ORANGE, RGB_BLINK, RGB_FOREVER);
 		while (! Kniwwelino.BUTTONBdown())  {
@@ -222,19 +223,22 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 * Sleeps the current program for the given number of milli seconds.
 	 * Use this one instead of arduino delay, as it handles Wifi and MQTT in the background.
 	 */
-	void KniwwelinoLib::sleep(uint16_t sleepMillis) {
+	void KniwwelinoLib::sleep(unsigned long sleepMillis) {
+		yield();
 		if (sleepMillis < 100) {
 			delay(sleepMillis);
 		} else {
 			unsigned long till = millis() + sleepMillis;
 			while (till > millis()) {
+				yield();
+
 				if (mqttEnabled && mqtt.connected()) {
 					mqtt.loop();
 				}
-				yield();
+
 				sleepMillis = till - millis();
-				if (sleepMillis > 10) {
-					delay(10);
+				if (sleepMillis > 100) {
+					delay(100);
 				} else {
 					delay(sleepMillis);
 				}
@@ -266,6 +270,8 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	void KniwwelinoLib::_baseTick() {
 		_tick++;
 
+		//DEBUG_PRINT(">");
+
 		Kniwwelino._PINhandle();
 
 		Kniwwelino._RGBblink();
@@ -274,23 +280,37 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 
 		Kniwwelino._MATRIXupdate();
 
-		//DEBUG_PRINT(">");
 	}
+
 
 
 	//====  logging  =============================================================
 
-	  void KniwwelinoLib::log		(String s) {
+	  void KniwwelinoLib::log (const String s) {
 		  Serial.print (s);
 		  if (mqttLogEnabled && mqttEnabled && mqtt.connected()) {
 			  mqtt.publish(mqttTopicStatus + "/log", s);
 		  }
 	  }
 
-	  void KniwwelinoLib::logln	(String s) {
+	  void KniwwelinoLib::logln	(const String s) {
 		  Serial.println (s);
 		  if (mqttLogEnabled && mqttEnabled && mqtt.connected()) {
 			  mqtt.publish(mqttTopicStatus + "/log", s + "\n");
+		  }
+	  }
+
+	  void KniwwelinoLib::log (const char  s[]) {
+		  Serial.print (s);
+		  if (mqttLogEnabled && mqttEnabled && mqtt.connected()) {
+			  mqtt.publish(mqttTopicStatus + "/log", s);
+		  }
+	  }
+
+	  void KniwwelinoLib::logln	(const char s[]) {
+		  Serial.println (s);
+		  if (mqttLogEnabled && mqttEnabled && mqtt.connected()) {
+			  mqtt.publish(mqttTopicStatus + "/log", s);
 		  }
 	  }
 
@@ -304,7 +324,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 				continue;
 			}
 
-			// TODO read external Button
+			// read external Button
 			if (ioPinStatus[i] == PIN_INPUT) {
 				if (!digitalRead(ioPinNumers[i])) ioPinclicked[i] = true;
 				continue;
@@ -323,7 +343,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 				continue;
 			}
 			// handle effect
-			if (rgbBlinkCount<=ioPinStatus[i]) {
+			if (rgbBlinkCount <= ioPinStatus[i]) {
 				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINTLN(" HIGH");
 				digitalWrite(ioPinNumers[i], HIGH);
 			} else {
@@ -449,7 +469,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
 	void KniwwelinoLib::RGBsetColorEffect(String col, uint8_t effect, int count) {
-		uint32_t color = _hex2int(col);
+		unsigned long color = _hex2int(col);
 		RGBsetColorEffect(color, effect, count);
 	}
 
@@ -457,7 +477,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 * Set the RGB LED of the board to show the given color.
 	 * col = color to show as 32 bit int.
 	 */
-	void KniwwelinoLib::RGBsetColor(uint32 color) {
+	void KniwwelinoLib::RGBsetColor(unsigned long color) {
 		RGBsetColorEffect(color, RGB_ON, RGB_FOREVER);
 	}
 
@@ -467,7 +487,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 * effect = on of RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
-	void KniwwelinoLib::RGBsetColorEffect(uint32 color, uint8_t effect, int count) {
+	void KniwwelinoLib::RGBsetColorEffect(unsigned long color, uint8_t effect, int count) {
 	     RGBsetColorEffect((uint8_t)(color >> 16) ,(uint8_t)(color >>  8), (uint8_t)color, effect, count);
 	}
 
@@ -490,11 +510,40 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
 	 */
 	void KniwwelinoLib::RGBsetColorEffect(uint8_t red ,uint8_t green, uint8_t blue, uint8_t effect, int count) {
-		rgbEffect =  effect;
-		rgbEffectCount = count;
+		//rgbEffect =  effect;
+		//rgbEffectCount = count;
+		//Serial.print("RGBsetColorEffect ");Serial.print(rgbEffect);Serial.print(" rgbEffectCount:");Serial.println(rgbEffectCount);
+
+		RGBsetEffect(effect, count);
 		RGB.setPixelColor(0, red, green, blue);
-		RGB.show();
+
+		if (rgbColor != RGB.getPixelColor(0)) {
+			RGB.show();
+		}
+
 		rgbColor = RGB.getPixelColor(0);
+	}
+
+	/*
+	 * Set the RGB LED of the board to show the given effect.
+	 * effect = on of RGB_ON/RGB_BLINK/RGB_FLASH/RGB_OFF
+	 * count = how long shall the effect be shown. (10 = 1sec, -1 shows forever.)
+	 */
+	void KniwwelinoLib::RGBsetEffect(uint8_t effect, int count) {
+		bool changed = (rgbEffect != effect);
+
+		rgbEffect = effect;
+		rgbEffectCount = count;
+
+		if (rgbEffect==RGB_ON) {
+			RGB.setPixelColor(0, rgbColor);
+			changed = true;
+		}
+
+		if (changed) {
+			RGB.show();
+		}
+
 	}
 
 	/*
@@ -502,8 +551,12 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 */
 	void KniwwelinoLib::RGBclear() {
 		rgbEffectCount=0;
-		RGB.setPixelColor(0, 0);
-		RGB.show();
+
+		if (rgbColor!=0) {
+			RGB.setPixelColor(0, 0);
+			RGB.show();
+		}
+		rgbColor = 0;
 	}
 
 	/*
@@ -517,6 +570,13 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	}
 
 	/*
+	 * returns the current LED Color as int
+	 */
+	uint32_t KniwwelinoLib::RGBgetColor() {
+		return rgbColor;
+	}
+
+	/*
 	 * Internal ticker function to handle the LED effects.
 	 */
 	void KniwwelinoLib::_RGBblink() {
@@ -525,7 +585,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 			Kniwwelino.RGBclear();
 		} else if (rgbEffect == RGB_ON) {
 			// if Effect is static on, nothing to do
-		} else if (rgbBlinkCount<=rgbEffect) {
+		} else if (rgbBlinkCount <= rgbEffect) {
 		// handle effect
 			if (RGB.getPixelColor(0)==0) {
 				RGB.setPixelColor(0, rgbColor);
@@ -537,8 +597,8 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 		}
 
 		rgbBlinkCount++;
-		if (rgbBlinkCount>10) {
-			rgbBlinkCount=1;
+		if (rgbBlinkCount > 10) {
+			rgbBlinkCount = 1;
 			if (rgbEffectCount > 0) rgbEffectCount--;
 		}
 	}
@@ -547,7 +607,8 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	 * Helper function to convert a given color in String format (#00FF00)
 	 * to a 32bit int color.
 	 */
-	unsigned long KniwwelinoLib::_hex2int(String str) {
+	unsigned long KniwwelinoLib::_hex2int(String &str) {
+
 	   int i;
 	   unsigned long val = 0;
 	   int len = str.length();
@@ -555,12 +616,22 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 	   // parse the first 6 chars for HEX
 	   if (len > 6) len = 6;
 
-	   for(i=0;i<len;i++)
-	      if(str.charAt(i) <= 57)
-	       val += (str.charAt(i)-48)*(1<<(4*(len-1-i)));
+	   for(i=0;i<len;i++) {
+		  char c = str.charAt(i);
+	      if(c <= 57)
+	       val += (c-48)*(1<<(4*(len-1-i)));
 	      else
-	       val += (str.charAt(i)-55)*(1<<(4*(len-1-i)));
+	       val += (c-55)*(1<<(4*(len-1-i)));
+	   }
 	   return val;
+	}
+
+	String KniwwelinoLib::RGBcolor2Hex(uint8_t c) {
+	  return String(String(c<16?"0":"") + String(c, HEX));
+	}
+
+	String KniwwelinoLib::RGBcolor2Hex(uint8_t r, uint8_t g, uint8_t b) {
+	  return String(RGBcolor2Hex(r) + RGBcolor2Hex(g) + RGBcolor2Hex(b));
 	}
 
 
@@ -1206,7 +1277,7 @@ void KniwwelinoLib::begin(boolean enableWifi, boolean fast, boolean mqttLog) {
 			DEBUG_PRINT(F("MQTTsubscribe: "));DEBUG_PRINTLN(Kniwwelino.mqttTopicLogEnabled);
 			mqtt.subscribe(Kniwwelino.mqttTopicLogEnabled);
 
-//			_MQTTupdateStatus(true);
+			_MQTTupdateStatus(true);
 
 			// resubscribe to topics
 			for (int j=9; j>-1; j--) {

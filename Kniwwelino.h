@@ -35,7 +35,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
-#define LIB_VERSION "kniwwelinoLIB_1.0.1"
+#define LIB_VERSION "kniwwelinoLIB_1.0.2"
 
 #define FW_VERSION 	"kniwwelino_100"
 
@@ -136,14 +136,16 @@ public:
 		String getName();
 		String getIP();
 		String getMAC();
-		void sleep(uint16_t millis);
+		void sleep(unsigned long millis);
 		void loop();
 		boolean isConnected();
 
 //====  logging  =============================================================
 
-		void log(String s);
-		void logln(String s);
+		void log(const String s);
+		void logln(const String s);
+		void log(const char s[]);
+		void logln(const char s[]);
 
 //====  IO Functions =========================================================
 
@@ -156,14 +158,18 @@ public:
 //==== RGB LED  functions ====================================================
 
 		void RGBsetColor(String color);
+		void RGBsetEffect(uint8_t effect, int count);
 		void RGBsetColorEffect(String color, uint8_t effect, int count);
-		void RGBsetColor(uint32 color);
-		void RGBsetColorEffect(uint32 color, uint8_t effect, int count);
+		void RGBsetColor(unsigned long color);
+		void RGBsetColorEffect(unsigned long color, uint8_t effect, int count);
 		void RGBsetColor(uint8_t red, uint8_t green, uint8_t blue);
 		void RGBsetColorEffect(uint8_t red, uint8_t green, uint8_t blue,
 				uint8_t effect, int count);
 		void RGBclear();
 		void RGBsetBrightness(uint8_t b);
+		uint32_t RGBgetColor();
+		String RGBcolor2Hex(uint8_t c);
+		String RGBcolor2Hex(uint8_t r, uint8_t g, uint8_t b);
 
 //==== LED MATRIX functions ==================================================
 
@@ -223,7 +229,7 @@ public:
 		static void _baseTick();
 		void _PINhandle();
 		void _RGBblink();
-		unsigned long _hex2int(String col);
+		unsigned long _hex2int(String &col);
 		void drawPixel(int16_t x, int16_t y, uint16_t color); // Draw a specific pixel
 		void _MATRIXupdate();
 		void _Buttonsread();
@@ -241,7 +247,7 @@ public:
 
 		// IO
 		byte ioPinNumers[4] = { D0, D5, D6, D7 };
-		int ioPinStatus[4] = { -1, -1, -1, -1 };
+		int ioPinStatus[4] = { PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED };
 		boolean ioPinclicked[4] = { false, false, false, false };
 
 		// MATRIX
@@ -258,8 +264,8 @@ public:
 		uint32_t rgbColor = 0;
 		int rgbEffect = RGB_ON;
 		int rgbEffectCount = -1;
-		uint8_t rgbBlinkCount = 1;
-		uint8_t rgbBrightness = RGB_BRIGHTNESS;
+		int rgbBlinkCount = 1;
+		int rgbBrightness = RGB_BRIGHTNESS;
 
 		// BUTTONS
 		boolean buttonsPressed;
