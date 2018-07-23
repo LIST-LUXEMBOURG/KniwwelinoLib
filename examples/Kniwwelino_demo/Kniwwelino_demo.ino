@@ -30,7 +30,7 @@ int brightness = MAXBRIGHTNESS, step = -STEPBRIGHTNESS;
 void setup() {
 
   //Initialize the Kniwwelino Board
-  Kniwwelino.begin(true, true); // Wifi=true, Fastboot=true
+  Kniwwelino.begin("Kniwwelino_demo",true, true, false); // Wifi=true, Fastboot=true, MQTT logging false
   Kniwwelino.MQTTsetGroup("KniwwelinoDemo");
   Kniwwelino.MQTTonMessage(messageReceived);
   Kniwwelino.MQTTconnectMATRIX();
