@@ -44,8 +44,8 @@
 // comment to disable debugging output via serial port.
 #define DEBUG
 
-#define LIB_VERSION "kniwwelinoLIB_1.1.0"
-#define FW_VERSION 	"kniwwelino_100"
+#define LIB_VERSION "kniwwelinoLIB_1.2.0"
+#define FW_VERSION 	"kniwwelino_120"
 
 #define DEF_TYPE    "Kniwwelino"
 #define NAME_PREFIX "Kniwwelino"
@@ -76,7 +76,7 @@
 #define EEPROM_ADR_NUM		511
 
 #define RGB_PIN 			15
-#define RGB_BRIGHTNESS		254
+#define RGB_BRIGHTNESS		100
 #define RGB_FOREVER			-1
 
 #define RGB_ON				10
@@ -212,6 +212,7 @@ public:
 		void MATRIXshowID();
 		boolean MATRIXtextDone();
 		void MATRIXsetStatus(uint8_t p);
+		void setRotation(uint8_t rotation);
 
 //==== Onboard Button functions ==============================================
 
@@ -309,6 +310,7 @@ public:
 		int iconcount = 0;
 		int iconnum = 0;
 		uint8_t displaybuffer[8];
+		uint8_t rotation = 0;
 		boolean idShowing = false;
 		uint8_t matrixScrollDiv = MATRIX_SCROLL_DIV;
 

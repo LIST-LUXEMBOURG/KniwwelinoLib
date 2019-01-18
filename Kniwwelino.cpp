@@ -177,6 +177,8 @@ void KniwwelinoLib::begin(const char nameStr[], boolean enableWifi, boolean fast
 	// BOOT: All done but Wifi -> line 2
 	MATRIXsetStatus(4);
 
+	DEBUG_PRINT(F("MAC: "));DEBUG_PRINTLN(WiFi.macAddress());
+
 	unsigned long wifiStart = millis();
 	if (enableWifi) {
 		DEBUG_PRINT(F(" WIFI:"));
@@ -978,11 +980,26 @@ void KniwwelinoLib::setSilent() {
 	 */
     boolean KniwwelinoLib::MATRIXgetPixel(uint8_t x, uint8_t y) {
     	// kniwwelino hardware specific: mirror cols
-    	x = 4 - x;
+    	int x1 = 4 - x;
+    	int y1 = y;
     	// swap x/y
-    	int a = x;
-    	x = y;
-    	y = a;
+//    	int a = x;
+//    	x = y;
+//    	y = a;
+
+  	  if (rotation == 0) {
+  		  x = y1;
+  		  y = x1;
+  	  } else if (rotation == 1) {
+  		  x = 4-x1;
+  		  y = y1;
+  	  } else if (rotation == 2) {
+  		  x = 4-y1;
+  		  y = 4-x1;
+  	  } else if (rotation == 3) {
+  		  x = x1;
+  		  y = 4-y1;
+  	  }
     	return bitRead((uint8_t) displaybuffer[y], x);
     }
 
@@ -1073,6 +1090,10 @@ void KniwwelinoLib::setSilent() {
 		return (matrixCount == 0);
 	}
 
+	void KniwwelinoLib::setRotation(uint8_t rot) {
+		rotation = rot;
+	}
+
 	/*
 	 * set the Pixel at pos x,y of the matrix to on/off
 	 *
@@ -1085,11 +1106,25 @@ void KniwwelinoLib::setSilent() {
     	if ((y < 0) || (y >= 5)) return;
     	  if ((x < 0) || (x >= 5)) return;
     	  // kniwwelino hardware specific: mirror cols
-    	  x = 4 - x;
+    	  int x1 = 4 - x;
+    	  int y1 = y;
     	  // swap x/y
-    	  int a = x;
-    	  x = y;
-    	  y = a;
+    	  //x = y1;
+    	  //y = x1;
+
+    	  if (rotation == 0) {
+    		  x = y1;
+    		  y = x1;
+    	  } else if (rotation == 1) {
+    		  x = 4-x1;
+    		  y = y1;
+    	  } else if (rotation == 2) {
+    		  x = 4-y1;
+    		  y = 4-x1;
+    	  } else if (rotation == 3) {
+    		  x = x1;
+    		  y = 4-y1;
+    	  }
 
     	  if (on) {
     	    displaybuffer[y] |= 1 << x;
@@ -1293,7 +1328,8 @@ void KniwwelinoLib::setSilent() {
 
 	  // read wifi conf file
 	  String wifiConf = FILEread(FILE_WIFI);
-	  DEBUG_PRINTLN("wifi.conf: ");DEBUG_PRINT(wifiConf);DEBUG_PRINTLN("-----------------");
+	  DEBUG_PRINTLN("read wifi conf");//DEBUG_PRINT(wifiConf);
+	  DEBUG_PRINTLN("-----------------");
 
 	  // BOOT: wifi config read
 	  if (!reconnecting) {
@@ -1410,9 +1446,9 @@ void KniwwelinoLib::setSilent() {
 					 DEBUG_PRINT(F(" PW is: ")); DEBUG_PRINT("***");//DEBUG_PRINT(pwd);
 					 DEBUG_PRINT(F(" connecting"));
 
-					 char cSSID[20];char cPWD[20];
-					 ssID.toCharArray(cSSID, 20);
-					 pwd.toCharArray(cPWD, 20);
+					 char cSSID[32];char cPWD[63];
+					 ssID.toCharArray(cSSID, 32);
+					 pwd.toCharArray(cPWD, 63);
 					 WiFi.begin(cSSID, cPWD);
 					 uint8_t retries = 0;
 					 while (WiFi.status() != WL_CONNECTED && retries < 20) {
@@ -1806,7 +1842,8 @@ void KniwwelinoLib::setSilent() {
     	// For the Platform update, login etc...
     	if (topic == Kniwwelino.mqttTopicReqPwd) {
     		DEBUG_PRINTLN("MQTT->PLATTFORM PW Request");
-    		Kniwwelino.MQTTpublish(Kniwwelino.mqttTopicSentPwd, String(Kniwwelino.platformPW));
+        	DEBUG_PRINT(F("MQTTpublish: "));DEBUG_PRINT(Kniwwelino.mqttTopicSentPwd);DEBUG_PRINT(F(" : "));DEBUG_PRINTLN(String(Kniwwelino.platformPW));
+        	Kniwwelino.mqtt.publish(Kniwwelino.mqttTopicSentPwd, String(Kniwwelino.platformPW));
     	} else if (topic == Kniwwelino.mqttTopicUpdate) {
     		DEBUG_PRINTLN("MQTT->PLATTFORM UPDATE Request");
 			if (payload && payload.equals("configuration")) {
@@ -1914,7 +1951,7 @@ void KniwwelinoLib::setSilent() {
 		DEBUG_PRINTLN(DEF_FWUPDATEURL);
 
 		HTTPClient http;
-		http.begin(updateServer, 3001, DEF_CONFUPDATEURL);
+		http.begin(updateServer, 80, DEF_CONFUPDATEURL);
 		http.useHTTP10(true);
 		http.setTimeout(8000);
 		http.setUserAgent(F("ESP8266-http-Update"));

@@ -19,7 +19,7 @@
 Adafruit_BME280 bme; // I2C
 
 void setup() {
-  Kniwwelino.begin(rue, true); // Wifi=true, Fastboot=true
+  Kniwwelino.begin(true, true); // Wifi=true, Fastboot=true
   Kniwwelino.MQTTsetGroup("KniwwelinoDemo");
 
   Serial.println(F("KniwwelinoWeather"));
