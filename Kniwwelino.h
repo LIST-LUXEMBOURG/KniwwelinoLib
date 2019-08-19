@@ -22,6 +22,7 @@
 #include <Wire.h>
 #include <EEPROM.h>
 
+#include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_NeoPixel.h>
 
@@ -44,8 +45,8 @@
 // comment to disable debugging output via serial port.
 #define DEBUG
 
-#define LIB_VERSION "kniwwelinoLIB_1.2.0"
-#define FW_VERSION 	"kniwwelino_120"
+#define LIB_VERSION "kniwwelinoLIB_1.2.1"
+#define FW_VERSION 	"kniwwelino_121"
 
 #define DEF_TYPE    "Kniwwelino"
 #define NAME_PREFIX "Kniwwelino"
@@ -113,6 +114,7 @@
 #define STATE_UPDATE  RGB_COLOR_ORANGE
 
 #define FILE_WIFI "/wifi.conf"
+#define FILE_FORCED_WIFI "/forcwifi.conf"
 #define FILE_CONF "/conf.json"
 
 #define DEF_UPDATESERVER		"broker.kniwwelino.lu"
@@ -192,8 +194,12 @@ public:
 		void RGBsetBrightness(uint8_t b);
 		uint32_t RGBgetColor();
 		unsigned long RGBhex2int(String col);
-		String RGBcolor2Hex(uint8_t c);
+		unsigned long RGBhue2int(uint8_t hue);
+		String RGBcolor2Hex(unsigned long color);
 		String RGBcolor2Hex(uint8_t r, uint8_t g, uint8_t b);
+		String RGBhue2Hex(uint8_t hue);
+		String RGB82Hex(uint8_t c);
+		
 
 //==== LED MATRIX functions ==================================================
 
@@ -301,6 +307,7 @@ public:
 		byte ioPinNumers[4] = { D0, D5, D6, D7 };
 		int ioPinStatus[4] = { PIN_UNUSED, PIN_UNUSED, PIN_UNUSED, PIN_UNUSED };
 		boolean ioPinclicked[4] = { false, false, false, false };
+		int pinBlinkCount = 1;
 
 		// MATRIX
 		boolean redrawMatrix = true;

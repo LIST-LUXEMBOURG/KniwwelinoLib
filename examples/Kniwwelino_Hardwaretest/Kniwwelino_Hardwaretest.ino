@@ -20,7 +20,7 @@ void setup() {
   Serial.println("Kniwwelino Hardware Test Sketch");
   Serial.println("-----------------------------------------------");
 
-  Kniwwelino.begin("hardwaretest" false, false, false); // Wifi=off, Fastboot=off
+  Kniwwelino.begin("hardwaretest", false, false, false); // Wifi=off, Fastboot=off
 
   pinMode(D0, INPUT);
   pinMode(D5, INPUT);

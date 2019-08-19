@@ -428,7 +428,11 @@ void KniwwelinoLib::setSilent() {
 	 * internal function for EXTERNAL PIN button or LED blink/flash effects
 	 */
 	void KniwwelinoLib::_PINhandle() {
-
+		pinBlinkCount++;
+		if (pinBlinkCount > 10) {
+			pinBlinkCount = 1;
+		}
+		
 		for (int i = 0; i < sizeof(ioPinNumers); i++) {
 			if (ioPinStatus[i] == PIN_UNUSED) {
 				continue;
@@ -453,7 +457,7 @@ void KniwwelinoLib::setSilent() {
 				continue;
 			}
 			// handle effect
-			if (rgbBlinkCount <= ioPinStatus[i]) {
+			if (pinBlinkCount <= ioPinStatus[i]) {
 				//DEBUG_PRINT("_PINblink ");DEBUG_PRINT(ioPinNumers[i]);DEBUG_PRINTLN(" HIGH");
 				digitalWrite(ioPinNumers[i], HIGH);
 			} else {
@@ -793,15 +797,42 @@ void KniwwelinoLib::setSilent() {
 	   }
 	   return val;
 	}
+	
+	/*
+	 * Helper function to convert a given color hue (0-255)
+	 * to a 32bit int color.
+     * The colours are a transition r -> g -> b -> back to r
+     * Inspired by the Adafruit examples and WS2812FX lib.
+	 */
+	unsigned long KniwwelinoLib::RGBhue2int(uint8_t hue) {
+	  hue = 255 - hue;
+	  if(hue < 85) {
+	    return ((uint32_t)(255 - hue * 3) << 16) | ((uint32_t)(0) << 8) | (hue * 3);
+	  } else if(hue < 170) {
+	    hue -= 85;
+	    return ((uint32_t)(0) << 16) | ((uint32_t)(hue * 3) << 8) | (255 - hue * 3);
+	  } else {
+	    hue -= 170;
+	    return ((uint32_t)(hue * 3) << 16) | ((uint32_t)(255 - hue * 3) << 8) | (0);
+	  }
+	}
 
-	String KniwwelinoLib::RGBcolor2Hex(uint8_t c) {
+	String KniwwelinoLib::RGB82Hex(uint8_t c) {
 		String s =  String(String(c<16?"0":"") + String(c, HEX));
 		s.toUpperCase();
 		return s;
 	}
 
+	String KniwwelinoLib::RGBcolor2Hex(unsigned long color) {
+		return String(RGB82Hex((uint8_t)(color >> 16)) + RGB82Hex((uint8_t)(color >>  8)) + RGB82Hex((uint8_t)color));
+	}
+	
+	String KniwwelinoLib::RGBhue2Hex(uint8_t hue) {
+		return Kniwwelino.RGBcolor2Hex(Kniwwelino.RGBhue2int(hue));
+	}
+
 	String KniwwelinoLib::RGBcolor2Hex(uint8_t r, uint8_t g, uint8_t b) {
-	  return String(RGBcolor2Hex(r) + RGBcolor2Hex(g) + RGBcolor2Hex(b));
+	  return String(RGB82Hex(r) + RGB82Hex(g) + RGB82Hex(b));
 	}
 
 
@@ -1355,7 +1386,7 @@ void KniwwelinoLib::setSilent() {
 	  }
 
 	  // show connecting to Wifi
-	  if (! silent) Kniwwelino.RGBsetColorEffect(STATE_WIFI, RGB_BLINK, RGB_FOREVER);
+	  if (!silent) Kniwwelino.RGBsetColorEffect(STATE_WIFI, RGB_BLINK, RGB_FOREVER);
 	  if (!fast) Kniwwelino.MATRIXdrawIcon(ICON_WIFI);
 
 	  // AP no longer needed, saves Energy
@@ -1367,7 +1398,7 @@ void KniwwelinoLib::setSilent() {
 
 	  if (wifiSSID.length() > 0) {
 		  // BOOT: trying last used wifi
-		  if (! reconnecting) {
+		  if (!reconnecting) {
 			  MATRIXsetStatus(6);
 		  }
 		  DEBUG_PRINT(F("Connecting to Last Used Wifi: "));DEBUG_PRINTLN(wifiSSID);
@@ -1391,11 +1422,58 @@ void KniwwelinoLib::setSilent() {
 		  DEBUG_PRINTLN("No Last Used Wifi stored");
 	  }
 
+		//forced Wifi Configuration Modus if not connected anyway
+		//read file
+		boolean forcedMode = false;
+		String forcedWifiConf = FILEread(FILE_FORCED_WIFI);
+		DEBUG_PRINTLN("read forced wifi conf");//DEBUG_PRINT(forcedWifiConf);
+	  DEBUG_PRINTLN("-----------------");
+		if (forcedWifiConf.length() > 0) {
+
+			//parce file content.
+			int pos = forcedWifiConf.indexOf("=");
+
+			String ssID = forcedWifiConf.substring(0, pos);
+			String pwd = forcedWifiConf.substring(pos+1, forcedWifiConf.indexOf("\n", pos));
+			DEBUG_PRINT("read forced wifi conf: SSID=");DEBUG_PRINTLN(ssID);
+			DEBUG_PRINT("read forced wifi conf: PWD=");DEBUG_PRINTLN(pwd);
+
+			//skip connect if already CONNECTED
+			if (WiFi.status() == WL_CONNECTED) {
+				if (WiFi.SSID() == ssID) {
+					forcedMode = true;
+				}
+			} else {
+				char cSSID[32];char cPWD[63];
+				ssID.toCharArray(cSSID, 32);
+				pwd.toCharArray(cPWD, 63);
+				WiFi.begin(cSSID, cPWD);
+				uint8_t retries = 0;
+				while (WiFi.status() != WL_CONNECTED && retries < 10) { //only 5 retries
+					DEBUG_PRINT(F("."));
+					if (!reconnecting) {
+						 if (retries%2 == 0) {
+							 MATRIXsetStatus(8);
+						 } else {
+							 MATRIXsetStatus(7);
+						 }
+					}
+					retries++;
+					delay(1000);
+				}
+				if (WiFi.status() == WL_CONNECTED) {
+					DEBUG_PRINTLN("Connected.");
+					forcedMode = true;
+				}
+			}
+		}
+
+
 	  // if we have a connection -> store it
 	  if (WiFi.status() == WL_CONNECTED) {
 		  // add current wifi if not in file.
 		  String newLine = wifiSSID + "=" + wifiPWD + "\n";
-		  if (wifiConf.indexOf(newLine) == -1) {
+		  if (!forcedMode && wifiConf.indexOf(newLine) == -1) {
 			  DEBUG_PRINT(F("Storing Wifi to /wifi.conf: "));DEBUG_PRINTLN(wifiSSID);
 			  wifiConf = newLine + wifiConf;
 			  //DEBUG_PRINTLN(wifiConf);
@@ -2087,6 +2165,11 @@ void KniwwelinoLib::setSilent() {
 	 */
     String KniwwelinoLib::FILEread(String fileName) {
     	SPIFFS.begin();
+
+			if (!SPIFFS.exists(fileName)) {
+				DEBUG_PRINT(F("FILEread: file not found: "));DEBUG_PRINTLN(fileName);
+				return String();
+			}
     	File file = SPIFFS.open(fileName, "r");
     	if (!file) {
     		DEBUG_PRINT(F("FILEread: failed to read file: "));DEBUG_PRINTLN(fileName);
