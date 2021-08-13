@@ -1,3 +1,8 @@
+# Deprecated  #
+
+This repository is deprecated.
+The official repository is : https://github.com/kniwwelino/KniwwelinoLib
+
 # KniwwelinoLib  #
 
 Copyright&copy; 2018 [Luxembourg Institute of Science and Technology](http://www.list.lu).
